@@ -18,7 +18,7 @@
   DEALINGS IN THE SOFTWARE.
  */
 
- #define DEBUG true // flag to turn on/off debugging
+ #define DEBUG false // flag to turn on/off debugging
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -96,6 +96,7 @@ static void notifyCallback(
         }
       }
     }
+    Serial.print ("*");  // just print a * for each received notification
 }
 
 void welcome(int message) {
