@@ -1,5 +1,8 @@
 /*
- * This sketch is based on
+ * This code implements a BLE receiver for the Komoot navigation app
+ * on an ESP32 controller with a 64x128 pixel OLED display connected.
+ *
+ * This sketch was inspired by
  * https://github.com/SensorsIot/Bluetooth-BLE-on-Arduino-IDE/blob/master/Polar_Receiver/Polar_Receiver.ino
  * from <Andreas Spiess>
  * which is based on Neil Kolban's example file: https://github.com/nkolban/ESP32_BLE_Arduino
@@ -18,9 +21,10 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define debug 0
+#define DEBUG false // flag to turn on/off debugging
 
 #include <Arduino.h>
+#define Serial if(DEBUG)Serial
 
 #include <string>
 
@@ -57,43 +61,20 @@ int timeout = 0;
 int scan_time = 0;
 uint8_t old_data[20];
 std::string value = "Start";
-
-const int battPin = 35; // A2=2 A6=34
-unsigned int raw=0;
-float volt=0.0;
-const float vScale1 = 225.0;
-const float vScale2 = 245.0;
-
 std::string street = "";
 std::string street_old = "";
 
+// Parameters and variables for the battery meter
+const int battPin = 35; // A2=2 A6=34
+unsigned int raw=0;
+float volt=0.0;
+// The scaling factors may need fine tuning per ESP32 (non-linear ADC)
+const float vScale1 = 225.0;
+const float vScale2 = 245.0;
+
 void callback(){
   //placeholder callback function for touch
-}
-
-static void notifyCallback(
-  BLERemoteCharacteristic* pBLERemoteCharacteristic,
-  uint8_t* pData,
-  size_t length,
-  bool isNotify) {
-    timeout = 0;
-    for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
-      if (pData[i] != old_data[i]) {
-        new_notify = true;
-        new_street = true;
-        memcpy(old_data,pData,20);
-        break;
-      }
-    }
-    if (! new_street) {
-      for (int i = 4; i < 9; i++) {  // 4 = direction, 5-8 = distance, 9.. street
-        if (pData[i] != old_data[i]) {
-          new_notify = true;
-          memcpy(old_data,pData,20);
-          break;
-        }
-      }
-    }
+  Serial.println ("Touch!");
 }
 
 void welcome(int message) {
@@ -110,13 +91,15 @@ void welcome(int message) {
     u8g2.setFont(u8g2_font_6x13_te);
     u8g2.setCursor(0, 62);
     if ( message == 0) {
-      u8g2.print("©2018 Matthias Homann");
+      u8g2.print("2018 Matthias Homann");
     } else {
       u8g2.print("Akku: ");
       u8g2.print(volt);
       u8g2.print(" V");
     }
   } while( u8g2.nextPage() );
+  Serial.print ("Show message #");
+  Serial.println (message);
 }
 
 void ble_connect(int status) {
@@ -145,43 +128,67 @@ void ble_connect(int status) {
       u8g2.print("BLE disconnected");
     }
   } while( u8g2.nextPage() );
+  Serial.print ("Show BLE icon #");
+  Serial.println (status);
+}
+
+// The BLE functions are starting here:
+
+static void notifyCallback(
+  BLERemoteCharacteristic* pBLERemoteCharacteristic,
+  uint8_t* pData,
+  size_t length,
+  bool isNotify) {
+    timeout = 0;
+    for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+      if (pData[i] != old_data[i]) {
+        new_notify = true;
+        new_street = true;
+        memcpy(old_data,pData,20);
+        break;
+      }
+    }
+    if (! new_street) {
+      for (int i = 4; i < 9; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+        if (pData[i] != old_data[i]) {
+          new_notify = true;
+          memcpy(old_data,pData,20);
+          break;
+        }
+      }
+    }
+    Serial.print ("Notify direction: ");
+    Serial.print (pData[4]);
+    Serial.print (", distance LSB: ");
+    Serial.println (pData[5]);
 }
 
 bool connectToServer(BLEAddress pAddress) {
-
   BLEClient* pClient  = BLEDevice::createClient(); // or use global pClient ?
-
   // Connect to the remove BLE Server.
   pClient->connect(pAddress);
-
+  Serial.println ("Connected to BLE server");
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
-
   if (pRemoteService == nullptr) {
     return false;
   }
-
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
   if (pRemoteCharacteristic == nullptr) {
     return false;
   }
-
   // Read the value of the characteristic.
   std::string value = pRemoteCharacteristic->readValue();
   pRemoteCharacteristic->registerForNotify(notifyCallback);
-
   // Display that BLE has been connected
+  Serial.println ("Connected to BLE requested service");
   ble_connect(1);
 }
 
-/**
-   Scan for BLE servers and find the first one that advertises the service we are looking for.
-*/
+// Scan for BLE servers and find the first one that advertises the service we are looking for.
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-    /**
-        Called for each advertising BLE server.
-    */
+    // Called for each advertising BLE server.
     void onResult(BLEAdvertisedDevice advertisedDevice) {
       // We have found a device, let us now see if it contains the service we are looking for.
       if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
@@ -192,12 +199,10 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     } // onResult
 }; // MyAdvertisedDeviceCallbacks
 
+// Main program setup
 void setup() {
-#if debug
   Serial.begin(115200);
   Serial.println("Starting Arduino BLE Client application...");
-#endif
-
   // reducte clock speed to save power
   // supported values = 2M (no BLE), 80M, 120M, 240M
   rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
@@ -208,11 +213,10 @@ void setup() {
   pinMode(battPin, INPUT);
   raw  = analogRead(battPin);
   volt = raw / vScale1;
-#if debug
+  // Print voltage on debug console
   Serial.print ("Battery = ");
   Serial.print (volt);
   Serial.println ("V");
-#endif
 
   u8g2.begin();
   u8g2.setFlipMode(rotation);
@@ -237,11 +241,12 @@ void setup() {
 
   // show BLS status "try to connect"
   ble_connect(0);
-
+  Serial.println ("Scan for BLE servers");
   pBLEScan->start(30); // try 30s to find a device
 
 } // End of setup.
 
+// Main program loop
 void loop() {
 
   // If the flag "doConnect" is true then we have scanned for and found the desired
@@ -277,6 +282,8 @@ void loop() {
         new_street = false;
         street_old = street;
         street = value.substr(9);
+        Serial.print ("Street: ");
+        Serial.println ("street.c_str()");
       }
     }
     // calculate the distance to next fork
