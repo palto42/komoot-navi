@@ -1,10 +1,10 @@
 /*
- * This sketch is based on
- * https://github.com/SensorsIot/Bluetooth-BLE-on-Arduino-IDE/blob/master/Polar_Receiver/Polar_Receiver.ino
- * from <Andreas Spiess>
- * which is based on Neil Kolban's example file: https://github.com/nkolban/ESP32_BLE_Arduino
- *
+ * BLE receiver for Komoot navi app
  * The Komoot BLE communication is described on https://github.com/komoot/BLEConnect
+ *
+ * This sketch was inspired by code from <Andreas Spiess>
+ * https://github.com/SensorsIot/Bluetooth-BLE-on-Arduino-IDE/blob/master/Polar_Receiver/Polar_Receiver.ino
+ * which is based on Neil Kolban's example file: https://github.com/nkolban/ESP32_BLE_Arduino
 
   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
   to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -18,9 +18,10 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define debug 0
+ #define DEBUG true // flag to turn on/off debugging
 
 #include <Arduino.h>
+#define Serial if(DEBUG)Serial
 
 #include <string>
 
@@ -69,6 +70,7 @@ std::string street_old = "";
 
 void callback(){
   //placeholder callback function for touch
+  Serial.println ("Touch!");
 }
 
 static void notifyCallback(
@@ -117,6 +119,8 @@ void welcome(int message) {
       u8g2.print(" V");
     }
   } while( u8g2.nextPage() );
+  Serial.print ("Show messge #");
+  Serial.println (message);
 }
 
 void ble_connect(int status) {
@@ -145,43 +149,35 @@ void ble_connect(int status) {
       u8g2.print("BLE disconnected");
     }
   } while( u8g2.nextPage() );
+  Serial.print ("Show BLE icon #");
+  Serial.println (status);
 }
 
 bool connectToServer(BLEAddress pAddress) {
-
   BLEClient* pClient  = BLEDevice::createClient(); // or use global pClient ?
-
   // Connect to the remove BLE Server.
   pClient->connect(pAddress);
-
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
-
   if (pRemoteService == nullptr) {
     return false;
   }
-
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
   if (pRemoteCharacteristic == nullptr) {
     return false;
   }
-
   // Read the value of the characteristic.
   std::string value = pRemoteCharacteristic->readValue();
   pRemoteCharacteristic->registerForNotify(notifyCallback);
-
   // Display that BLE has been connected
   ble_connect(1);
+  Serial.println ("Connected to desired service on BLE server");
 }
 
-/**
-   Scan for BLE servers and find the first one that advertises the service we are looking for.
-*/
+// Scan for BLE servers and find the first one that advertises the service we are looking for.
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-    /**
-        Called for each advertising BLE server.
-    */
+    //Called for each advertising BLE server.
     void onResult(BLEAdvertisedDevice advertisedDevice) {
       // We have found a device, let us now see if it contains the service we are looking for.
       if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
@@ -192,11 +188,10 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     } // onResult
 }; // MyAdvertisedDeviceCallbacks
 
+// Main program setup
 void setup() {
-#if debug
   Serial.begin(115200);
   Serial.println("Starting Arduino BLE Client application...");
-#endif
 
   // reducte clock speed to save power
   // supported values = 2M (no BLE), 80M, 120M, 240M
@@ -208,11 +203,8 @@ void setup() {
   pinMode(battPin, INPUT);
   raw  = analogRead(battPin);
   volt = raw / vScale1;
-#if debug
   Serial.print ("Battery = ");
-  Serial.print (volt);
-  Serial.println ("V");
-#endif
+  Serial.println (volt);
 
   u8g2.begin();
   u8g2.setFlipMode(rotation);
@@ -242,8 +234,8 @@ void setup() {
 
 } // End of setup.
 
+// Main program loop
 void loop() {
-
   // If the flag "doConnect" is true then we have scanned for and found the desired
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
   // connected we set the connected flag to be true.
@@ -277,6 +269,8 @@ void loop() {
         new_street = false;
         street_old = street;
         street = value.substr(9);
+        Serial.print ("Street: ");
+        Serial.println (street.c_str());
       }
     }
     // calculate the distance to next fork
@@ -296,6 +290,9 @@ void loop() {
       } else // 10m steps
         dist = int(dist / 10) * 10;  // round down
     }
+    Serial.print ("Distance: ");
+    Serial.println (dist);
+    Serial.println (dist_unit);
     // std::string street = value.substr(9);
     // get battery voltage
     raw  = analogRead(battPin);
