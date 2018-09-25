@@ -64,8 +64,9 @@ std::string value = "Start";
 const int battPin = 35; // A2=2 A6=34
 unsigned int raw=0;
 float volt=0.0;
-const float vScale1 = 225.0;
-const float vScale2 = 245.0;
+// ESP32 ADV is a bit non-linear
+const float vScale1 = 225.0; // divider for higher voltage range
+const float vScale2 = 245.0; // divider for lower voltage range
 
 std::string street = "";
 std::string street_old = "";
@@ -102,10 +103,18 @@ static void notifyCallback(
 }
 
 void show_message(String message, int sym_num = 0) {
-  // Welcome screen
+  // Show message and symbol (max size = 64 w * 48 h)
+  int x_offset = 32 - my_symbols[sym_num].width / 2;
+  int y_offset = 24 - my_symbols[sym_num].height / 2;
+  // need to set font before getting the message width
+  u8g2.setFont(u8g2_font_6x13_te);
+  int text_offset = 64 - u8g2.getUTF8Width(message.c_str()) / 2;
+  Serial.print("Text offset: ");
+  Serial.println(text_offset);
   u8g2.firstPage();
   do {
-    u8g2.drawXBMP(0,0,my_symbols[sym_num].width, my_symbols[sym_num].height,
+    u8g2.drawXBMP(x_offset,y_offset,
+                  my_symbols[sym_num].width, my_symbols[sym_num].height,
                   my_symbols[sym_num].xmp_bitmap);
     u8g2.setFont(u8g2_font_logisoso16_tr);
     //u8g2.setFont(u8g2_font_logisoso22_tr);
@@ -114,7 +123,7 @@ void show_message(String message, int sym_num = 0) {
     u8g2.setCursor(80, 40);
     u8g2.print("Navi");
     u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(0, 62);
+    u8g2.setCursor(text_offset, 62);
     u8g2.print(message);
   } while( u8g2.nextPage() );
   Serial.print ("Show messge: ");
