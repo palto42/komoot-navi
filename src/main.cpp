@@ -39,7 +39,8 @@ U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   
 const int rotation = 1;  // display rotaion: 0=none, 1=180deg
 
 #include <navi_sym_48.h>  // local library "symbols"
-#include <ble_sym_48.h>
+//#include <ble_sym_48.h>
+#include <extra_sym.h>
 
 // Komoot Connect service and characteristics
 static BLEUUID serviceUUID("71C1E128-D92F-4FA8-A2B2-0F171DB3436C"); // navigationServiceUUID
@@ -103,12 +104,13 @@ void welcome(int message) {
   // Welcome screen
   u8g2.firstPage();
   do {
-    u8g2.drawXBMP(0,0,48,48,navi_sym[0]);
-    u8g2.setFont(u8g2_font_logisoso18_tr);
+    u8g2.drawXBMP(0,0,my_symbols[3].width, my_symbols[3].height,
+                  my_symbols[3].xmp_bitmap);
+    u8g2.setFont(u8g2_font_logisoso16_tr);
     //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(50, 22);
+    u8g2.setCursor(64, 18);
     u8g2.print("Komoot");
-    u8g2.setCursor(70, 44);
+    u8g2.setCursor(80, 40);
     u8g2.print("Navi");
     u8g2.setFont(u8g2_font_6x13_te);
     u8g2.setCursor(0, 62);
@@ -128,17 +130,18 @@ void ble_connect(int status) {
   // BLE connection status screen
   u8g2.firstPage();
   do {
-    u8g2.drawXBMP(0,0,48,48,ble_sym[status]);  // 0=BLE, 1= connected
+    u8g2.drawXBMP(0, 0, my_symbols[status].width, my_symbols[status].height,
+                  my_symbols[status].xmp_bitmap);  // 0=BLE, 1= connected
     // show battery voltage
     // draw a line from X=52 to x=127 for full battery (75 px)
     // Vmin = 3.0 Vmax=4.2 (delta 1.2)
     int batt_length = int((volt - 3.0) / 1.2 * 75);
     batt_length = _min (batt_length,75);
-    u8g2.setFont(u8g2_font_logisoso18_tr);
+    u8g2.setFont(u8g2_font_logisoso16_tr);
     //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(50, 22);
+    u8g2.setCursor(64, 18);
     u8g2.print("Komoot");
-    u8g2.setCursor(70, 44);
+    u8g2.setCursor(80, 40);
     u8g2.print("Navi");
     u8g2.setFont(u8g2_font_6x13_te);
     u8g2.setCursor(0, 62);
