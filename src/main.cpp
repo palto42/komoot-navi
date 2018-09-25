@@ -19,6 +19,7 @@
  */
 
  #define DEBUG false // flag to turn on/off debugging
+ #
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -100,12 +101,12 @@ static void notifyCallback(
     Serial.print ("*");  // just print a * for each received notification
 }
 
-void welcome(int message) {
+void show_message(String message, int sym_num = 0) {
   // Welcome screen
   u8g2.firstPage();
   do {
-    u8g2.drawXBMP(0,0,my_symbols[3].width, my_symbols[3].height,
-                  my_symbols[3].xmp_bitmap);
+    u8g2.drawXBMP(0,0,my_symbols[sym_num].width, my_symbols[sym_num].height,
+                  my_symbols[sym_num].xmp_bitmap);
     u8g2.setFont(u8g2_font_logisoso16_tr);
     //u8g2.setFont(u8g2_font_logisoso22_tr);
     u8g2.setCursor(64, 18);
@@ -114,47 +115,10 @@ void welcome(int message) {
     u8g2.print("Navi");
     u8g2.setFont(u8g2_font_6x13_te);
     u8g2.setCursor(0, 62);
-    if ( message == 0) {
-      u8g2.print("©2018 Matthias Homann");
-    } else {
-      u8g2.print("Akku: ");
-      u8g2.print(volt);
-      u8g2.print(" V");
-    }
+    u8g2.print(message);
   } while( u8g2.nextPage() );
-  Serial.print ("Show messge #");
+  Serial.print ("Show messge: ");
   Serial.println (message);
-}
-
-void ble_connect(int status) {
-  // BLE connection status screen
-  u8g2.firstPage();
-  do {
-    u8g2.drawXBMP(0, 0, my_symbols[status].width, my_symbols[status].height,
-                  my_symbols[status].xmp_bitmap);  // 0=BLE, 1= connected
-    // show battery voltage
-    // draw a line from X=52 to x=127 for full battery (75 px)
-    // Vmin = 3.0 Vmax=4.2 (delta 1.2)
-    int batt_length = int((volt - 3.0) / 1.2 * 75);
-    batt_length = _min (batt_length,75);
-    u8g2.setFont(u8g2_font_logisoso16_tr);
-    //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(64, 18);
-    u8g2.print("Komoot");
-    u8g2.setCursor(80, 40);
-    u8g2.print("Navi");
-    u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(0, 62);
-    if ( status == 0 ) {
-      u8g2.print("BLE try to connect");
-    } else if (status == 1) {
-      u8g2.print("BLE connected");
-    } else { // == 2
-      u8g2.print("BLE disconnected");
-    }
-  } while( u8g2.nextPage() );
-  Serial.print ("Show BLE icon #");
-  Serial.println (status);
 }
 
 bool connectToServer(BLEAddress pAddress) {
@@ -175,7 +139,7 @@ bool connectToServer(BLEAddress pAddress) {
   std::string value = pRemoteCharacteristic->readValue();
   pRemoteCharacteristic->registerForNotify(notifyCallback);
   // Display that BLE has been connected
-  ble_connect(1);
+  show_message("BLE connected",2);
   Serial.println ("Connected to desired service on BLE server");
 }
 
@@ -217,9 +181,9 @@ void setup() {
   u8g2.setFontDirection(0);
 
   // Welcome screen
-  welcome(0); // developer
+  show_message("©2018 Matthias Homann"); // developer
   delay(500);
-  welcome(1); // battery status
+  show_message("Akku: " + String(volt, 1) + " V"); // battery status
   delay(500);
 
   BLEDevice::init("");
@@ -232,10 +196,22 @@ void setup() {
   pBLEScan->setActiveScan(true);
 
   // show BLS status "try to connect"
-  ble_connect(0);
+  show_message("BLE try to connect",1);
 
+  uint32_t scan_time = millis();
   pBLEScan->start(30); // try 30s to find a device
-
+  scan_time = millis() -scan_time;
+  Serial.print("Scan time: ");
+  Serial.println(scan_time/1000);
+  if (scan_time > 29000) {
+    // timeout
+    show_message("No BLE, will turn off",3);
+    delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
+    //ESP.restart();
+    u8g2.setPowerSave(1);
+    //esp_wifi_stop();
+    esp_deep_sleep_start();
+  }
 } // End of setup.
 
 // Main program loop
@@ -251,10 +227,10 @@ void loop() {
     }
     doConnect = false;
   }
-  // poweroff if no server found after scan, could not connect or timeout
-  if (timeout > 30 or (not doConnect and not connected )) { // (not doConnect and not connected ) or
+  // poweroff if timeout exceeded
+  if (timeout > 30) {
      // show BLS status "disconnected"
-      ble_connect(2);
+      show_message("BLE disconnected",3);
       connected = false;
       delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
       //ESP.restart();
@@ -301,11 +277,15 @@ void loop() {
     // get battery voltage
     raw  = analogRead(battPin);
     volt = raw / vScale2;
+#if False  // disable for debugging
     if (volt < 3.1) { //sleep below 3.1 V
+      show_message("Low battery, power-off");
+      delay(999);
       u8g2.setPowerSave(1);
       //esp_wifi_stop();
       esp_deep_sleep_start();
     }
+#endif
     u8g2.firstPage();
     do {
       u8g2.drawXBMP(0,0,48,48,navi_sym[old_data[4]]);
