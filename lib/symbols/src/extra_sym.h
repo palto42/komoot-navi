@@ -126,8 +126,8 @@ struct BITMAPS {
 #define ble_sym_num 4
 
 BITMAPS my_symbols[] = {
+  { cycle_bits, 64, 46 },
   { ble_bits, 48, 48 },
   { ble_connect_bits, 48, 48 },
   { ble_discon_bits, 48, 48 },
-  { cycle_bits, 64, 46 },
 };
