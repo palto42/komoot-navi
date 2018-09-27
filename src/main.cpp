@@ -1,13 +1,10 @@
 /*
- * This code implements a BLE receiver for the Komoot navigation app
- * on an ESP32 controller with a 64x128 pixel OLED display connected.
- *
- * This sketch was inspired by
- * https://github.com/SensorsIot/Bluetooth-BLE-on-Arduino-IDE/blob/master/Polar_Receiver/Polar_Receiver.ino
- * from <Andreas Spiess>
- * which is based on Neil Kolban's example file: https://github.com/nkolban/ESP32_BLE_Arduino
- *
+ * BLE receiver for Komoot navi app
  * The Komoot BLE communication is described on https://github.com/komoot/BLEConnect
+ *
+ * This sketch was inspired by code from <Andreas Spiess>
+ * https://github.com/SensorsIot/Bluetooth-BLE-on-Arduino-IDE/blob/master/Polar_Receiver/Polar_Receiver.ino
+ * which is based on Neil Kolban's example file: https://github.com/nkolban/ESP32_BLE_Arduino
 
   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
   to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense,
@@ -21,7 +18,8 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define DEBUG false // flag to turn on/off debugging
+ #define DEBUG false // flag to turn on/off debugging
+ #
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -37,12 +35,13 @@
 #define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
 
 // U8g2 Contructor
-U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
-//U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
+//U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
 const int rotation = 1;  // display rotaion: 0=none, 1=180deg
 
 #include <navi_sym_48.h>  // local library "symbols"
-#include <ble_sym_48.h>
+//#include <ble_sym_48.h>
+#include <extra_sym.h>
 
 // Komoot Connect service and characteristics
 static BLEUUID serviceUUID("71C1E128-D92F-4FA8-A2B2-0F171DB3436C"); // navigationServiceUUID
@@ -61,78 +60,21 @@ int timeout = 0;
 int scan_time = 0;
 uint8_t old_data[20];
 std::string value = "Start";
-std::string street = "";
-std::string street_old = "";
 
-// Parameters and variables for the battery meter
 const int battPin = 35; // A2=2 A6=34
 unsigned int raw=0;
 float volt=0.0;
-// The scaling factors may need fine tuning per ESP32 (non-linear ADC)
-const float vScale1 = 225.0;
-const float vScale2 = 245.0;
+// ESP32 ADV is a bit non-linear
+const float vScale1 = 225.0; // divider for higher voltage range
+const float vScale2 = 245.0; // divider for lower voltage range
+
+std::string street = "Start";
+std::string street_old = "";
 
 void callback(){
   //placeholder callback function for touch
   Serial.println ("Touch!");
 }
-
-void welcome(int message) {
-  // Welcome screen
-  u8g2.firstPage();
-  do {
-    u8g2.drawXBMP(0,0,48,48,navi_sym[0]);
-    u8g2.setFont(u8g2_font_logisoso18_tr);
-    //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(50, 22);
-    u8g2.print("Komoot");
-    u8g2.setCursor(70, 44);
-    u8g2.print("Navi");
-    u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(0, 62);
-    if ( message == 0) {
-      u8g2.print("2018 Matthias Homann");
-    } else {
-      u8g2.print("Akku: ");
-      u8g2.print(volt);
-      u8g2.print(" V");
-    }
-  } while( u8g2.nextPage() );
-  Serial.print ("Show message #");
-  Serial.println (message);
-}
-
-void ble_connect(int status) {
-  // BLE connection status screen
-  u8g2.firstPage();
-  do {
-    u8g2.drawXBMP(0,0,48,48,ble_sym[status]);  // 0=BLE, 1= connected
-    // show battery voltage
-    // draw a line from X=52 to x=127 for full battery (75 px)
-    // Vmin = 3.0 Vmax=4.2 (delta 1.2)
-    int batt_length = int((volt - 3.0) / 1.2 * 75);
-    batt_length = _min (batt_length,75);
-    u8g2.setFont(u8g2_font_logisoso18_tr);
-    //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(50, 22);
-    u8g2.print("Komoot");
-    u8g2.setCursor(70, 44);
-    u8g2.print("Navi");
-    u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(0, 62);
-    if ( status == 0 ) {
-      u8g2.print("BLE try to connect");
-    } else if (status == 1) {
-      u8g2.print("BLE connected");
-    } else { // == 2
-      u8g2.print("BLE disconnected");
-    }
-  } while( u8g2.nextPage() );
-  Serial.print ("Show BLE icon #");
-  Serial.println (status);
-}
-
-// The BLE functions are starting here:
 
 static void notifyCallback(
   BLERemoteCharacteristic* pBLERemoteCharacteristic,
@@ -140,16 +82,24 @@ static void notifyCallback(
   size_t length,
   bool isNotify) {
     timeout = 0;
-    for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
-      if (pData[i] != old_data[i]) {
-        new_notify = true;
-        new_street = true;
-        memcpy(old_data,pData,20);
-        break;
+    // pData 4 = direction, 5-8 = distance, 9.. street
+    // check if direction has changed
+    if (pData[4] != old_data[4]) {
+      new_notify = true;
+      new_street = true;
+      memcpy(old_data,pData,20);
+    } else { // check if street has changed
+      for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+        if (pData[i] != old_data[i]) {
+          new_notify = true;
+          new_street = true;
+          memcpy(old_data,pData,20);
+          break;
+        }
       }
     }
-    if (! new_street) {
-      for (int i = 4; i < 9; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+    if (! new_street) { // checkj if distance has changed
+      for (int i = 5; i < 9; i++) {
         if (pData[i] != old_data[i]) {
           new_notify = true;
           memcpy(old_data,pData,20);
@@ -157,17 +107,42 @@ static void notifyCallback(
         }
       }
     }
-    Serial.print ("Notify direction: ");
-    Serial.print (pData[4]);
-    Serial.print (", distance LSB: ");
-    Serial.println (pData[5]);
+    Serial.print ("*");  // just print a * for each received notification
+}
+
+void show_message(String message, int sym_num = 0) {
+  // Show message and symbol (max size = 64 w * 48 h)
+  int x_offset = 32 - my_symbols[sym_num].width / 2;
+  int y_offset = 40 - my_symbols[sym_num].height / 2;
+  // need to set font before getting the message width
+  u8g2.setFont(u8g2_font_6x13_te);
+  int text_offset = 64 - u8g2.getUTF8Width(message.c_str()) / 2;
+  text_offset = std::max(0, text_offset);
+  Serial.print("Text offset: ");
+  Serial.println(text_offset);
+  u8g2.firstPage();
+  do {
+    u8g2.drawXBMP(x_offset,y_offset,
+                  my_symbols[sym_num].width, my_symbols[sym_num].height,
+                  my_symbols[sym_num].xmp_bitmap);
+    u8g2.setFont(u8g2_font_logisoso16_tr);
+    //u8g2.setFont(u8g2_font_logisoso22_tr);
+    u8g2.setCursor(64, 34);
+    u8g2.print("Komoot");
+    u8g2.setCursor(80, 56);
+    u8g2.print("Navi");
+    u8g2.setFont(u8g2_font_6x13_te);
+    u8g2.setCursor(text_offset, 12);
+    u8g2.print(message);
+  } while( u8g2.nextPage() );
+  Serial.print ("Show messge: ");
+  Serial.println (message);
 }
 
 bool connectToServer(BLEAddress pAddress) {
   BLEClient* pClient  = BLEDevice::createClient(); // or use global pClient ?
   // Connect to the remove BLE Server.
   pClient->connect(pAddress);
-  Serial.println ("Connected to BLE server");
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
   if (pRemoteService == nullptr) {
@@ -182,13 +157,13 @@ bool connectToServer(BLEAddress pAddress) {
   std::string value = pRemoteCharacteristic->readValue();
   pRemoteCharacteristic->registerForNotify(notifyCallback);
   // Display that BLE has been connected
-  Serial.println ("Connected to BLE requested service");
-  ble_connect(1);
+  show_message("BLE connected",2);
+  Serial.println ("Connected to desired service on BLE server");
 }
 
 // Scan for BLE servers and find the first one that advertises the service we are looking for.
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
-    // Called for each advertising BLE server.
+    //Called for each advertising BLE server.
     void onResult(BLEAdvertisedDevice advertisedDevice) {
       // We have found a device, let us now see if it contains the service we are looking for.
       if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
@@ -203,6 +178,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 void setup() {
   Serial.begin(115200);
   Serial.println("Starting Arduino BLE Client application...");
+
   // reducte clock speed to save power
   // supported values = 2M (no BLE), 80M, 120M, 240M
   rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
@@ -213,10 +189,8 @@ void setup() {
   pinMode(battPin, INPUT);
   raw  = analogRead(battPin);
   volt = raw / vScale1;
-  // Print voltage on debug console
   Serial.print ("Battery = ");
-  Serial.print (volt);
-  Serial.println ("V");
+  Serial.println (volt);
 
   u8g2.begin();
   u8g2.setFlipMode(rotation);
@@ -224,10 +198,18 @@ void setup() {
   u8g2.enableUTF8Print();
   u8g2.setFontDirection(0);
 
+  if (volt < 3.2) { //sleep below 3.2 V
+    show_message("Low battery, shutdown",4);
+    delay(999);
+    u8g2.setPowerSave(1);
+    //esp_wifi_stop();
+    esp_deep_sleep_start();
+  }
+
   // Welcome screen
-  welcome(0); // developer
+  show_message("©2018 Matthias Homann"); // developer
   delay(500);
-  welcome(1); // battery status
+  show_message("Akku: " + String(volt, 1) + " V"); // battery status
   delay(500);
 
   BLEDevice::init("");
@@ -240,15 +222,26 @@ void setup() {
   pBLEScan->setActiveScan(true);
 
   // show BLS status "try to connect"
-  ble_connect(0);
-  Serial.println ("Scan for BLE servers");
-  pBLEScan->start(30); // try 30s to find a device
+  show_message("BLE try to connect",1);
 
+  uint32_t scan_time = millis();
+  pBLEScan->start(30); // try 30s to find a device
+  scan_time = millis() -scan_time;
+  Serial.print("Scan time: ");
+  Serial.println(scan_time/1000);
+  if (scan_time > 29000) {
+    // timeout
+    show_message("No BLE, will turn off",3);
+    delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
+    //ESP.restart();
+    u8g2.setPowerSave(1);
+    //esp_wifi_stop();
+    esp_deep_sleep_start();
+  }
 } // End of setup.
 
 // Main program loop
 void loop() {
-
   // If the flag "doConnect" is true then we have scanned for and found the desired
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
   // connected we set the connected flag to be true.
@@ -260,10 +253,10 @@ void loop() {
     }
     doConnect = false;
   }
-  // poweroff if no server found after scan, could not connect or timeout
-  if (timeout > 30 or (not doConnect and not connected )) { // (not doConnect and not connected ) or
+  // poweroff if timeout exceeded
+  if (timeout > 30) {
      // show BLS status "disconnected"
-      ble_connect(2);
+      show_message("BLE disconnected",3);
       connected = false;
       delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
       //ESP.restart();
@@ -283,7 +276,7 @@ void loop() {
         street_old = street;
         street = value.substr(9);
         Serial.print ("Street: ");
-        Serial.println ("street.c_str()");
+        Serial.println (street.c_str());
       }
     }
     // calculate the distance to next fork
@@ -303,38 +296,45 @@ void loop() {
       } else // 10m steps
         dist = int(dist / 10) * 10;  // round down
     }
+    Serial.print ("Distance: ");
+    Serial.println (dist);
+    Serial.println (dist_unit);
     // std::string street = value.substr(9);
     // get battery voltage
     raw  = analogRead(battPin);
     volt = raw / vScale2;
     if (volt < 3.1) { //sleep below 3.1 V
+      show_message("Low battery, shutdown",4);
+      delay(999);
       u8g2.setPowerSave(1);
       //esp_wifi_stop();
       esp_deep_sleep_start();
     }
+    u8g2.setFont(u8g2_font_6x13_te);
+    int text_offset = 64 - u8g2.getUTF8Width(street.c_str()) / 2;
+    text_offset = std::max(0, text_offset);
     u8g2.firstPage();
     do {
-      u8g2.drawXBMP(0,0,48,48,navi_sym[old_data[4]]);
+      u8g2.drawXBMP(0,16,48,48,navi_sym[old_data[4]]);
+      // show street name
+      u8g2.setFont(u8g2_font_6x13_te);
+      u8g2.setCursor(text_offset, 12);
+      u8g2.print(street.c_str());
+      // show distance
+      u8g2.setFont(u8g2_font_logisoso18_tr);
+      u8g2.setCursor(52, 42);
+      u8g2.print(dist,digits);
+      u8g2.print(dist_unit);
+      // show previous street name at top (or bottom?)
+      u8g2.setFont(u8g2_font_6x13_te);
+      u8g2.setCursor(52, 58);
+      u8g2.print(street_old.c_str());
       // show battery voltage
       // draw a line from X=52 to x=127 for full battery (75 px)
       // Vmin = 3.0 Vmax=4.2 (delta 1.2)
       int batt_length = int((volt - 3.0) / 1.2 * 75);
       batt_length = _min (batt_length,75);
-      u8g2.drawHLine(127-batt_length,0,batt_length);
-      // show previous street name at top (or bottom?)
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(52, 16);
-      u8g2.print(street_old.c_str());
-      // show distance
-      u8g2.setFont(u8g2_font_logisoso18_tr);
-      //u8g2.setFont(u8g2_font_logisoso22_tr);
-      u8g2.setCursor(52, 44);
-      u8g2.print(dist,digits);
-      u8g2.print(dist_unit);
-      // show street name
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(0, 62);
-      u8g2.print(street.c_str());
+      u8g2.drawHLine(127-batt_length,63,batt_length);
     } while( u8g2.nextPage() );
   }
   timeout++;
