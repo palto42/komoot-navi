@@ -35,8 +35,8 @@
 #define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
 
 // U8g2 Contructor
-U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
-//U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
+//U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
+U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
 const int rotation = 1;  // display rotaion: 0=none, 1=180deg
 
 #include <navi_sym_48.h>  // local library "symbols"
@@ -68,7 +68,7 @@ float volt=0.0;
 const float vScale1 = 225.0; // divider for higher voltage range
 const float vScale2 = 245.0; // divider for lower voltage range
 
-std::string street = "";
+std::string street = "Start";
 std::string street_old = "";
 
 void callback(){
@@ -82,16 +82,24 @@ static void notifyCallback(
   size_t length,
   bool isNotify) {
     timeout = 0;
-    for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
-      if (pData[i] != old_data[i]) {
-        new_notify = true;
-        new_street = true;
-        memcpy(old_data,pData,20);
-        break;
+    // pData 4 = direction, 5-8 = distance, 9.. street
+    // check if direction has changed
+    if (pData[4] != old_data[4]) {
+      new_notify = true;
+      new_street = true;
+      memcpy(old_data,pData,20);
+    } else { // check if street has changed
+      for (int i = 9; i < 20; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+        if (pData[i] != old_data[i]) {
+          new_notify = true;
+          new_street = true;
+          memcpy(old_data,pData,20);
+          break;
+        }
       }
     }
-    if (! new_street) {
-      for (int i = 4; i < 9; i++) {  // 4 = direction, 5-8 = distance, 9.. street
+    if (! new_street) { // checkj if distance has changed
+      for (int i = 5; i < 9; i++) {
         if (pData[i] != old_data[i]) {
           new_notify = true;
           memcpy(old_data,pData,20);
@@ -105,10 +113,11 @@ static void notifyCallback(
 void show_message(String message, int sym_num = 0) {
   // Show message and symbol (max size = 64 w * 48 h)
   int x_offset = 32 - my_symbols[sym_num].width / 2;
-  int y_offset = 24 - my_symbols[sym_num].height / 2;
+  int y_offset = 40 - my_symbols[sym_num].height / 2;
   // need to set font before getting the message width
   u8g2.setFont(u8g2_font_6x13_te);
   int text_offset = 64 - u8g2.getUTF8Width(message.c_str()) / 2;
+  text_offset = std::max(0, text_offset);
   Serial.print("Text offset: ");
   Serial.println(text_offset);
   u8g2.firstPage();
@@ -118,12 +127,12 @@ void show_message(String message, int sym_num = 0) {
                   my_symbols[sym_num].xmp_bitmap);
     u8g2.setFont(u8g2_font_logisoso16_tr);
     //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(64, 18);
+    u8g2.setCursor(64, 34);
     u8g2.print("Komoot");
-    u8g2.setCursor(80, 40);
+    u8g2.setCursor(80, 56);
     u8g2.print("Navi");
     u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(text_offset, 62);
+    u8g2.setCursor(text_offset, 12);
     u8g2.print(message);
   } while( u8g2.nextPage() );
   Serial.print ("Show messge: ");
@@ -188,6 +197,14 @@ void setup() {
   // enable UTF8 support for the Arduino print() function
   u8g2.enableUTF8Print();
   u8g2.setFontDirection(0);
+
+  if (volt < 3.2) { //sleep below 3.2 V
+    show_message("Low battery, shutdown",4);
+    delay(999);
+    u8g2.setPowerSave(1);
+    //esp_wifi_stop();
+    esp_deep_sleep_start();
+  }
 
   // Welcome screen
   show_message("©2018 Matthias Homann"); // developer
@@ -286,38 +303,38 @@ void loop() {
     // get battery voltage
     raw  = analogRead(battPin);
     volt = raw / vScale2;
-#if False  // disable for debugging
     if (volt < 3.1) { //sleep below 3.1 V
-      show_message("Low battery, power-off");
+      show_message("Low battery, shutdown",4);
       delay(999);
       u8g2.setPowerSave(1);
       //esp_wifi_stop();
       esp_deep_sleep_start();
     }
-#endif
+    u8g2.setFont(u8g2_font_6x13_te);
+    int text_offset = 64 - u8g2.getUTF8Width(street.c_str()) / 2;
+    text_offset = std::max(0, text_offset);
     u8g2.firstPage();
     do {
-      u8g2.drawXBMP(0,0,48,48,navi_sym[old_data[4]]);
+      u8g2.drawXBMP(0,16,48,48,navi_sym[old_data[4]]);
+      // show street name
+      u8g2.setFont(u8g2_font_6x13_te);
+      u8g2.setCursor(text_offset, 12);
+      u8g2.print(street.c_str());
+      // show distance
+      u8g2.setFont(u8g2_font_logisoso18_tr);
+      u8g2.setCursor(52, 42);
+      u8g2.print(dist,digits);
+      u8g2.print(dist_unit);
+      // show previous street name at top (or bottom?)
+      u8g2.setFont(u8g2_font_6x13_te);
+      u8g2.setCursor(52, 58);
+      u8g2.print(street_old.c_str());
       // show battery voltage
       // draw a line from X=52 to x=127 for full battery (75 px)
       // Vmin = 3.0 Vmax=4.2 (delta 1.2)
       int batt_length = int((volt - 3.0) / 1.2 * 75);
       batt_length = _min (batt_length,75);
-      u8g2.drawHLine(127-batt_length,0,batt_length);
-      // show previous street name at top (or bottom?)
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(52, 16);
-      u8g2.print(street_old.c_str());
-      // show distance
-      u8g2.setFont(u8g2_font_logisoso18_tr);
-      //u8g2.setFont(u8g2_font_logisoso22_tr);
-      u8g2.setCursor(52, 44);
-      u8g2.print(dist,digits);
-      u8g2.print(dist_unit);
-      // show street name
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(0, 62);
-      u8g2.print(street.c_str());
+      u8g2.drawHLine(127-batt_length,63,batt_length);
     } while( u8g2.nextPage() );
   }
   timeout++;
