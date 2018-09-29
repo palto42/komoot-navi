@@ -9,4 +9,7 @@ The prototype uses a [Wemos Lolin32](https://wiki.wemos.cc/products:lolin32:loli
 A voltage devider with two resistors is used to measure the battery power.
 
 Prototype:
+
 ![Prototype in an old screw box](/doc/prototype.jpg)
+
+For more information, please check the /doc folder.
