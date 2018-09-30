@@ -18,7 +18,7 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define DEBUG false // flag to turn on/off debugging
+#define DEBUG 0 // flag to turn on/off debugging
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -33,12 +33,21 @@
 
 #define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
 
+#define PIN_SCL 22
+#define PIN_SDA 21
+
 // U8g2 Contructor
-#if debug
+// see https://github.com/olikraus/u8g2/wiki/u8g2setupcpp
+// The hardware I2C allows pin remapping for some controller types. The optional
+// pin numbers are listed after the reset pin: ..._HW_I2C([reset [, clock, data]]).
+// Use U8X8_PIN_NONE if the reset input of the display is not connected.
+#if DEBUG
 // using small OLED on dev-platform
-U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
+//U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA );   // 0.8" OLED
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA);   // ESP32 HW I2C with pin remapping
 #else
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
+//U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA);   // remapping I2C pins
 #endif
 
 const int rotation = 1;  // display rotaion: 0=none, 1=180deg
@@ -176,31 +185,31 @@ void show_message(std::string header, int sym_num = 32, std::string distance="Ko
   info = utf8_substr(info,0,max_info);
   Serial.print("Info max length: ");
   Serial.println(max_info);
-  u8g2.firstPage();
-  do {
-    u8g2.drawXBMP(x_offset,y_offset,
-                  symbols[sym_num].width, symbols[sym_num].height,
-                  symbols[sym_num].xmp_bitmap);
-    u8g2.setFont(u8g2_font_logisoso16_tr);
-    //dist_pos_x = 52;
-    u8g2.setCursor(dist_pos_x, 42);
-    u8g2.print(distance.c_str());
-    u8g2.setFont(u8g2_font_6x13_te);
-    //header_pos_x = 0;
-    u8g2.setCursor(header_pos_x, 12);
-    u8g2.print(header.c_str());
-    // show extra info (e.g. current street)
-    u8g2.setFont(u8g2_font_6x13_te);
-    //info_pos_x = 52;
-    u8g2.setCursor(info_pos_x, 58);
-    u8g2.print(info.c_str());
-    // show battery voltage
-    // draw a line from X=52 to x=127 for full battery (75 px)
-    // Vmin = 3.0 Vmax=4.2 (delta 1.2)
-    int batt_length = int((volt - 3.0) / 1.2 * 75);
-    batt_length = _min (batt_length,75);
-    u8g2.drawHLine(126-batt_length,63,batt_length);
-  } while( u8g2.nextPage() );
+  // use full buffer mode
+  u8g2.clearBuffer();
+  u8g2.drawXBMP(x_offset,y_offset,
+                symbols[sym_num].width, symbols[sym_num].height,
+                symbols[sym_num].xmp_bitmap);
+  u8g2.setFont(u8g2_font_logisoso16_tr);
+  //dist_pos_x = 52;
+  u8g2.setCursor(dist_pos_x, 42);
+  u8g2.print(distance.c_str());
+  u8g2.setFont(u8g2_font_6x13_te);
+  //header_pos_x = 0;
+  u8g2.setCursor(header_pos_x, 12);
+  u8g2.print(header.c_str());
+  // show extra info (e.g. current street)
+  u8g2.setFont(u8g2_font_6x13_te);
+  //info_pos_x = 52;
+  u8g2.setCursor(info_pos_x, 58);
+  u8g2.print(info.c_str());
+  // show battery voltage
+  // draw a line from X=52 to x=127 for full battery (75 px)
+  // Vmin = 3.0 Vmax=4.2 (delta 1.2)
+  int batt_length = int((volt - 3.0) / 1.2 * 75);
+  batt_length = _min (batt_length,75);
+  u8g2.drawHLine(126-batt_length,63,batt_length);
+  u8g2.sendBuffer();  // full buffer mode
   Serial.print ("Show messge: ");
   Serial.println (header.c_str());
 }
