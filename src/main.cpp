@@ -234,6 +234,7 @@ bool connectToServer(BLEAddress pAddress) {
   // Display that BLE has been connected
   show_message("BLE connected",34);
   Serial.println ("Connected to desired service on BLE server");
+  return true;
 }
 
 // Scan for BLE servers and find the first one that advertises the service we are looking for.
@@ -255,9 +256,11 @@ void setup() {
   Serial.println();
   Serial.println("Starting Arduino BLE Client application...");
 
-  // reducte clock speed to save power
+  // reduce clock speed to save power
   // supported values = 2M (no BLE), 80M, 120M, 240M
-  rtc_clk_cpu_freq_set(RTC_CPU_FREQ_80M);
+  rtc_cpu_freq_config_t freq_conf;
+  rtc_clk_cpu_freq_to_config(RTC_CPU_FREQ_80M, &freq_conf);
+  rtc_clk_cpu_freq_set_config(&freq_conf);
 
   touchAttachInterrupt(T3, callback, Threshold); // Touch 3 = GPIO 15
   esp_sleep_enable_touchpad_wakeup();
