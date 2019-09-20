@@ -18,8 +18,7 @@
   DEALINGS IN THE SOFTWARE.
  */
 
- #define DEBUG false // flag to turn on/off debugging
- #
+#define DEBUG 0 // flag to turn on/off debugging
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -34,14 +33,27 @@
 
 #define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
 
+#define PIN_SCL 22
+#define PIN_SDA 21
+
 // U8g2 Contructor
-//U8G2_SSD1306_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 0.8" OLED
+// see https://github.com/olikraus/u8g2/wiki/u8g2setupcpp
+// The hardware I2C allows pin remapping for some controller types. The optional
+// pin numbers are listed after the reset pin: ..._HW_I2C([reset [, clock, data]]).
+// Use U8X8_PIN_NONE if the reset input of the display is not connected.
+#if DEBUG
+// using small OLED on dev-platform
+//U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA );   // 0.8" OLED
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA);   // ESP32 HW I2C with pin remapping
+#else
 U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);   // 1.3" OLED
+//U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE, /* clock=*/ PIN_SCL, /* data=*/ PIN_SDA);   // remapping I2C pins
+#endif
+
 const int rotation = 1;  // display rotaion: 0=none, 1=180deg
 
-#include <navi_sym_48.h>  // local library "symbols"
-//#include <ble_sym_48.h>
-#include <extra_sym.h>
+// local library with navigation icons and extra symbols
+#include <symbols.h>
 
 // Komoot Connect service and characteristics
 static BLEUUID serviceUUID("71C1E128-D92F-4FA8-A2B2-0F171DB3436C"); // navigationServiceUUID
@@ -110,33 +122,96 @@ static void notifyCallback(
     Serial.print ("*");  // just print a * for each received notification
 }
 
-void show_message(String message, int sym_num = 0) {
+std::string utf8_substr(const std::string& str, unsigned int start, unsigned int leng)
+{
+    if (leng==0) { return ""; }
+    unsigned int c, i, ix, q, min=std::string::npos, max=std::string::npos;
+    for (q=0, i=0, ix=str.length(); i < ix; i++, q++)
+    {
+        if (q==start){ min=i; }
+        if (q<=start+leng || leng==std::string::npos){ max=i; }
+
+        c = (unsigned char) str[i];
+        if      (
+                 //c>=0   &&
+                 c<=127) i+=0;
+        else if ((c & 0xE0) == 0xC0) i+=1;
+        else if ((c & 0xF0) == 0xE0) i+=2;
+        else if ((c & 0xF8) == 0xF0) i+=3;
+        //else if (($c & 0xFC) == 0xF8) i+=4; // 111110bb //byte 5, unnecessary in 4 byte UTF-8
+        //else if (($c & 0xFE) == 0xFC) i+=5; // 1111110b //byte 6, unnecessary in 4 byte UTF-8
+        else return "";//invalid utf8
+    }
+    if (q<=start+leng || leng==std::string::npos){ max=i; }
+    if (min==std::string::npos || max==std::string::npos) { return ""; }
+    return str.substr(min,max);
+}
+
+void show_message(std::string header, int sym_num = 32, std::string distance="Komoot",
+                  std::string info="Navigation", float volt=0) {
   // Show message and symbol (max size = 64 w * 48 h)
-  int x_offset = 32 - my_symbols[sym_num].width / 2;
-  int y_offset = 40 - my_symbols[sym_num].height / 2;
+  const int max_header = 128 / 6;
+  header = utf8_substr(header,0,max_header);
+  int icon_width = std::max(52,symbols[sym_num].width);
+  int x_offset = std::max(0,24 - symbols[sym_num].width / 2);
+  int y_offset = 40 - symbols[sym_num].height / 2;
+  Serial.print("Icon x-offset: ");
+  Serial.print(x_offset);
+  Serial.print(", y-offset: ");
+  Serial.println(y_offset);
   // need to set font before getting the message width
   u8g2.setFont(u8g2_font_6x13_te);
-  int text_offset = 64 - u8g2.getUTF8Width(message.c_str()) / 2;
-  text_offset = std::max(0, text_offset);
-  Serial.print("Text offset: ");
-  Serial.println(text_offset);
-  u8g2.firstPage();
-  do {
-    u8g2.drawXBMP(x_offset,y_offset,
-                  my_symbols[sym_num].width, my_symbols[sym_num].height,
-                  my_symbols[sym_num].xmp_bitmap);
-    u8g2.setFont(u8g2_font_logisoso16_tr);
-    //u8g2.setFont(u8g2_font_logisoso22_tr);
-    u8g2.setCursor(64, 34);
-    u8g2.print("Komoot");
-    u8g2.setCursor(80, 56);
-    u8g2.print("Navi");
-    u8g2.setFont(u8g2_font_6x13_te);
-    u8g2.setCursor(text_offset, 12);
-    u8g2.print(message);
-  } while( u8g2.nextPage() );
+  int header_pos_x = std::max(0,63 - u8g2.getUTF8Width(header.c_str()) / 2);
+  int info_pos_x = icon_width + std::max(0,(127 - icon_width - u8g2.getUTF8Width(info.c_str())) / 2);
+  Serial.print("Header length:");
+  Serial.print(header.length());
+  Serial.print("width: ");
+  Serial.print(u8g2.getUTF8Width(distance.c_str()));
+  Serial.print(", offset: ");
+  Serial.println(header_pos_x);
+  u8g2.setFont(u8g2_font_logisoso16_tr);  // width 10, heigth 16
+  int dist_pos_x = icon_width + std::max(0,(127 - icon_width - u8g2.getUTF8Width(distance.c_str())) / 2);
+  Serial.print("Offset info: ");
+  Serial.print(info_pos_x);
+  Serial.print(", distance: ");
+  Serial.print(dist_pos_x);
+  Serial.print(", dist width: ");
+  Serial.println(u8g2.getUTF8Width(distance.c_str()));
+  int max_dist = (128 - dist_pos_x) / 10;
+  distance = utf8_substr(distance,0,max_dist);
+  Serial.print("Dist max length: ");
+  Serial.println(max_dist);
+  int max_info = (128 - info_pos_x) / 6;
+  info = utf8_substr(info,0,max_info);
+  Serial.print("Info max length: ");
+  Serial.println(max_info);
+  // use full buffer mode
+  u8g2.clearBuffer();
+  u8g2.drawXBMP(x_offset,y_offset,
+                symbols[sym_num].width, symbols[sym_num].height,
+                symbols[sym_num].xmp_bitmap);
+  u8g2.setFont(u8g2_font_logisoso16_tr);
+  //dist_pos_x = 52;
+  u8g2.setCursor(dist_pos_x, 42);
+  u8g2.print(distance.c_str());
+  u8g2.setFont(u8g2_font_6x13_te);
+  //header_pos_x = 0;
+  u8g2.setCursor(header_pos_x, 12);
+  u8g2.print(header.c_str());
+  // show extra info (e.g. current street)
+  u8g2.setFont(u8g2_font_6x13_te);
+  //info_pos_x = 52;
+  u8g2.setCursor(info_pos_x, 58);
+  u8g2.print(info.c_str());
+  // show battery voltage
+  // draw a line from X=52 to x=127 for full battery (75 px)
+  // Vmin = 3.0 Vmax=4.2 (delta 1.2)
+  int batt_length = int((volt - 3.0) / 1.2 * 75);
+  batt_length = _min (batt_length,75);
+  u8g2.drawHLine(126-batt_length,63,batt_length);
+  u8g2.sendBuffer();  // full buffer mode
   Serial.print ("Show messge: ");
-  Serial.println (message);
+  Serial.println (header.c_str());
 }
 
 bool connectToServer(BLEAddress pAddress) {
@@ -157,7 +232,7 @@ bool connectToServer(BLEAddress pAddress) {
   std::string value = pRemoteCharacteristic->readValue();
   pRemoteCharacteristic->registerForNotify(notifyCallback);
   // Display that BLE has been connected
-  show_message("BLE connected",2);
+  show_message("BLE connected",34);
   Serial.println ("Connected to desired service on BLE server");
 }
 
@@ -177,6 +252,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 // Main program setup
 void setup() {
   Serial.begin(115200);
+  Serial.println();
   Serial.println("Starting Arduino BLE Client application...");
 
   // reducte clock speed to save power
@@ -199,7 +275,7 @@ void setup() {
   u8g2.setFontDirection(0);
 
   if (volt < 3.2) { //sleep below 3.2 V
-    show_message("Low battery, shutdown",4);
+    show_message("Switching off now...",36,"LOW","battery",volt);
     delay(999);
     u8g2.setPowerSave(1);
     //esp_wifi_stop();
@@ -209,7 +285,8 @@ void setup() {
   // Welcome screen
   show_message("©2018 Matthias Homann"); // developer
   delay(500);
-  show_message("Akku: " + String(volt, 1) + " V"); // battery status
+  String v_str = "Akku: " + String(volt,1) + "V";
+  show_message(v_str.c_str()); // battery status
   delay(500);
 
   BLEDevice::init("");
@@ -222,7 +299,7 @@ void setup() {
   pBLEScan->setActiveScan(true);
 
   // show BLS status "try to connect"
-  show_message("BLE try to connect",1);
+  show_message("BLE try to connect",33);
 
   uint32_t scan_time = millis();
   pBLEScan->start(30); // try 30s to find a device
@@ -231,7 +308,7 @@ void setup() {
   Serial.println(scan_time/1000);
   if (scan_time > 29000) {
     // timeout
-    show_message("No BLE, will turn off",3);
+    show_message("No BLE, will turn off",35);
     delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
     //ESP.restart();
     u8g2.setPowerSave(1);
@@ -256,7 +333,7 @@ void loop() {
   // poweroff if timeout exceeded
   if (timeout > 30) {
      // show BLS status "disconnected"
-      show_message("BLE disconnected",3);
+      show_message("BLE disconnected",36);
       connected = false;
       delay(999); // 3s delay, 1000/3 for clock 80M=240M/3
       //ESP.restart();
@@ -283,7 +360,7 @@ void loop() {
     // ignore 4th Byte, assume distance is below 16777 km ;-)
     double dist = int(old_data[5])+int(old_data[6])*256+int(old_data[7])*65536;
     int digits = 0;
-    String dist_unit = " m";
+    std::string dist_unit = " m";
     if (dist > 1000) { // km unit
       dist = dist / 1000;
       dist_unit = " km";
@@ -296,46 +373,27 @@ void loop() {
       } else // 10m steps
         dist = int(dist / 10) * 10;  // round down
     }
+    dist_unit = String(dist,digits).c_str() + dist_unit;
     Serial.print ("Distance: ");
     Serial.println (dist);
-    Serial.println (dist_unit);
     // std::string street = value.substr(9);
     // get battery voltage
     raw  = analogRead(battPin);
     volt = raw / vScale2;
     if (volt < 3.1) { //sleep below 3.1 V
-      show_message("Low battery, shutdown",4);
+      show_message("Switching off now...",36,"LOW","battery",volt);
       delay(999);
       u8g2.setPowerSave(1);
       //esp_wifi_stop();
       esp_deep_sleep_start();
     }
+
+    show_message(street.c_str(),old_data[4],dist_unit,street_old.c_str(),volt);
+
     u8g2.setFont(u8g2_font_6x13_te);
     int text_offset = 64 - u8g2.getUTF8Width(street.c_str()) / 2;
     text_offset = std::max(0, text_offset);
     u8g2.firstPage();
-    do {
-      u8g2.drawXBMP(0,16,48,48,navi_sym[old_data[4]]);
-      // show street name
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(text_offset, 12);
-      u8g2.print(street.c_str());
-      // show distance
-      u8g2.setFont(u8g2_font_logisoso18_tr);
-      u8g2.setCursor(52, 42);
-      u8g2.print(dist,digits);
-      u8g2.print(dist_unit);
-      // show previous street name at top (or bottom?)
-      u8g2.setFont(u8g2_font_6x13_te);
-      u8g2.setCursor(52, 58);
-      u8g2.print(street_old.c_str());
-      // show battery voltage
-      // draw a line from X=52 to x=127 for full battery (75 px)
-      // Vmin = 3.0 Vmax=4.2 (delta 1.2)
-      int batt_length = int((volt - 3.0) / 1.2 * 75);
-      batt_length = _min (batt_length,75);
-      u8g2.drawHLine(127-batt_length,63,batt_length);
-    } while( u8g2.nextPage() );
   }
   timeout++;
   heartbeat++;
