@@ -8,8 +8,9 @@ The prototype uses a [Wemos Lolin32](https://wiki.wemos.cc/products:lolin32:loli
 
 A voltage devider with two resistors is used to measure the battery power.
 
-Prototype:
+Navi in 3D-printect case:
 
-![Prototype in an old screw box](/doc/prototype.jpg)
+![navi in 3d-printed case](/doc/navi-case.jpg)
 
-For more information, please check the /doc folder.
+For more information, please check the [/doc](/doc) folder.
+The Blender and STL files for the 3D-printed case are in the [/navi-case](/navi-case)] folder.
