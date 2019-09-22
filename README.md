@@ -14,3 +14,14 @@ Navi in 3D-printect case:
 
 For more information, please check the [/doc](/doc) folder.
 The Blender and STL files for the 3D-printed case are in the [/navi-case](/navi-case)] folder.
+
+## Pairing the device with the Komoot app
+
+Before using the device as Kommot navigation receiver, it needs to be paired with the Kommot app.
+This is done in the app "Profile > Settings > Bluetooth Connect" (not via the system Bluetooth pairing).
+
+![navi in 3d-printed case](/doc/Komoot-app-settings.jpg)
+
+Then select "Ciclo HAC bike computer" from the "Connect anaother device" section and turn on the ESP32 navigation receiver.
+
+![navi in 3d-printed case](/doc/Komoot-app-pairing.jpg)
