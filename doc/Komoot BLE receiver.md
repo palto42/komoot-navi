@@ -22,6 +22,10 @@ Then select "Ciclo HAC bike computer" from the "Connect anaother device" section
 
 ![Komoot device pairing](/doc/Komoot-app-pairing.jpg)
 
+If the device was discovered ("Ciclo HAC Device &#10004;" shown above the "&#8634; Waiting for connection..."), you are done and need to manually go back to the settings.
+
+![Komoot device pairing](/doc/Komoot-app-waiting.jpg)
+
 ## Code
 
 The code was originally developed with Arduino IDE, but then I changed to PlatformIO (on  VS Code or Atom editor) due to better integration with Git, faster code complilation and good dependency management for teh libraries.
@@ -61,5 +65,3 @@ The [Fritzing](https://fritzing.org) source file: [Komoot_BLE](Komoot_BLE.fzz)
 3. Neil Kolban's [BLRexample file](https://github.com/nkolban/ESP32_BLE_Arduino)
 4. Adreas Spiess Polar receiver [video #174](https://youtu.be/osneajf7Xkg)
 5. Similar (newer) project [esp32_komoot_ble](https://github.com/jstiefel/esp32_komoot_ble)
-
-
