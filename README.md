@@ -25,3 +25,7 @@ This is done in the app "Profile > Settings > Bluetooth Connect" (not via the sy
 Then select "Ciclo HAC bike computer" from the "Connect anaother device" section and turn on the ESP32 navigation receiver.
 
 ![navi in 3d-printed case](/doc/Komoot-app-pairing.jpg)
+
+## Similar projects
+
+* [esp32_komoot_ble](https://github.com/jstiefel/esp32_komoot_ble)
