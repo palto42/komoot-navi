@@ -18,7 +18,7 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define DEBUG 0 // flag to turn on/off debugging
+#define DEBUG 1 // flag to turn on/off debugging
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
@@ -31,7 +31,7 @@
 #include<U8g2lib.h>
 #include<Wire.h>
 
-#define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
+#define Threshold 50 /* touch pin threshold 75, greater the value = more the sensitivity */
 
 #define PIN_SCL 22
 #define PIN_SDA 21
@@ -60,16 +60,20 @@ static BLEUUID serviceUUID("71C1E128-D92F-4FA8-A2B2-0F171DB3436C"); // navigatio
 static BLEUUID charUUID("503DD605-9BCB-4F6E-B235-270A57483026");    // navigationServiceNotifyCharacteristicUUI
 static BLEUUID heartUUID("6D75DBF0-D763-4147-942A-D97B1BC700CF");   // navigationServiceHeartbeatWriteCharacteristicUUID
 
-static BLEAddress *pServerAddress;
+// static BLEAddress *pServerAddress;
 static BLERemoteCharacteristic* pRemoteCharacteristic;
+static BLEAdvertisedDevice* myDevice;
 static boolean doConnect = false;
 static boolean connected = false;
+static boolean doScan = false;
 
 boolean new_notify = false;
 boolean new_street = false;
 int heartbeat = 0;
 int timeout = 0;
 int scan_time = 0;
+BLEScan* pBLEScan;
+
 uint8_t old_data[20];
 std::string value = "Start";
 
@@ -214,23 +218,49 @@ void show_message(std::string header, int sym_num = 32, std::string distance="Ko
   Serial.println (header.c_str());
 }
 
-bool connectToServer(BLEAddress pAddress) {
+class MyClientCallback : public BLEClientCallbacks {
+  void onConnect(BLEClient* pclient) {
+  }
+
+  void onDisconnect(BLEClient* pclient) {
+    connected = false;
+    Serial.println("onDisconnect");
+  }
+};
+
+bool connectToServer() {
   BLEClient* pClient  = BLEDevice::createClient(); // or use global pClient ?
-  // Connect to the remove BLE Server.
-  pClient->connect(pAddress);
+  Serial.println(" - Create client");
+  // Connect to the remote BLE Server.
+  pClient->connect(myDevice);  // if you pass BLEAdvertisedDevice instead of address, it will be recognized type of peer device address (public or private)
+  Serial.println(" - Connected to server");
   // Obtain a reference to the service we are after in the remote BLE server.
   BLERemoteService* pRemoteService = pClient->getService(serviceUUID);
   if (pRemoteService == nullptr) {
+    Serial.print("Failed to find our service UUID: ");
+    Serial.println(serviceUUID.toString().c_str());
+    pClient->disconnect();
     return false;
   }
+  Serial.print (" - Refernce to service obtained");
   // Obtain a reference to the characteristic in the service of the remote BLE server.
   pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);
   if (pRemoteCharacteristic == nullptr) {
+    Serial.print("Failed to find our characteristic UUID: ");
+    Serial.println(charUUID.toString().c_str());
+    pClient->disconnect();
     return false;
   }
-  // Read the value of the characteristic.
-  std::string value = pRemoteCharacteristic->readValue();
-  pRemoteCharacteristic->registerForNotify(notifyCallback);
+  Serial.print (" - Refernce to characteristics obtained");
+  if (pRemoteCharacteristic->canRead()) {
+    std::string value = pRemoteCharacteristic->readValue();
+    Serial.print("The characteristic value was: ");
+    Serial.println(value.c_str());
+  }
+  if (pRemoteCharacteristic->canNotify())
+    pRemoteCharacteristic->registerForNotify(notifyCallback);
+
+  connected = true;
   // Display that BLE has been connected
   show_message("BLE connected",34);
   Serial.println ("Connected to desired service on BLE server");
@@ -241,11 +271,14 @@ bool connectToServer(BLEAddress pAddress) {
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     //Called for each advertising BLE server.
     void onResult(BLEAdvertisedDevice advertisedDevice) {
+      Serial.print("BLE Advertised Device found: ");
+      Serial.println(advertisedDevice.toString().c_str());
       // We have found a device, let us now see if it contains the service we are looking for.
-      if (advertisedDevice.haveServiceUUID() && advertisedDevice.getServiceUUID().equals(serviceUUID)) {
-        advertisedDevice.getScan()->stop();
-        pServerAddress = new BLEAddress(advertisedDevice.getAddress());
+      if (advertisedDevice.haveServiceUUID() && advertisedDevice.isAdvertisingService(serviceUUID)) {
+        BLEDevice::getScan()->stop();
+        myDevice = new BLEAdvertisedDevice(advertisedDevice);
         doConnect = true;
+        doScan = true;
       } // Found our server
     } // onResult
 }; // MyAdvertisedDeviceCallbacks
@@ -297,15 +330,17 @@ void setup() {
   // Retrieve a Scanner and set the callback we want to use to be informed when we
   // have detected a new device.  Specify that we want active scanning and start the
   // scan to run for 30 seconds.
-  BLEScan* pBLEScan = BLEDevice::getScan();
+  pBLEScan = BLEDevice::getScan();
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setInterval(1349);
+  pBLEScan->setWindow(449);
   pBLEScan->setActiveScan(true);
 
   // show BLS status "try to connect"
   show_message("BLE try to connect",33);
 
   uint32_t scan_time = millis();
-  pBLEScan->start(30); // try 30s to find a device
+  pBLEScan->start(30, false); // try 30s to find a device
   scan_time = millis() -scan_time;
   Serial.print("Scan time: ");
   Serial.println(scan_time/1000);
@@ -326,10 +361,13 @@ void loop() {
   // BLE Server with which we wish to connect.  Now we connect to it.  Once we are
   // connected we set the connected flag to be true.
   if (doConnect == true) {
-    if (connectToServer(*pServerAddress)) {
+    Serial.print("connectToServer: ");
+    if (connectToServer()) {
       connected = true;
+      Serial.println("done");
     } else {
       connected = false;
+      Serial.println("failed");
     }
     doConnect = false;
   }
