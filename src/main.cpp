@@ -251,14 +251,24 @@ bool connectToServer() {
     pClient->disconnect();
     return false;
   }
-  Serial.print (" - Refernce to characteristics obtained");
+  Serial.println (" - Refernce to characteristics obtained");
+  delay(333); // 1s delay (reduced clock)
   if (pRemoteCharacteristic->canRead()) {
+    Serial.println (" - can read");
     std::string value = pRemoteCharacteristic->readValue();
     Serial.print("The characteristic value was: ");
     Serial.println(value.c_str());
+  } else {
+    Serial.println (" - can NOT notify");
   }
-  if (pRemoteCharacteristic->canNotify())
+
+  delay(333); // 1s delay (reduced clock)
+  if (pRemoteCharacteristic->canNotify()) {
+    Serial.println (" - can notify");
     pRemoteCharacteristic->registerForNotify(notifyCallback);
+  } else {
+    Serial.println (" - can NOT notify");
+  }
 
   connected = true;
   // Display that BLE has been connected
