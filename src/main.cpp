@@ -18,7 +18,7 @@
   DEALINGS IN THE SOFTWARE.
  */
 
-#define DEBUG 1 // flag to turn on/off debugging
+#define DEBUG 0 // flag to turn on/off debugging
 
 #include <Arduino.h>
 #define Serial if(DEBUG)Serial
