@@ -56,7 +56,7 @@ The [Fritzing](https://fritzing.org) source file: [Komoot_BLE](Komoot_BLE.fzz)
 
 * ESP32 board, e.g. LOLIN32 or Lolin32 lite (clones still available on Ebay)
 * OLED display 128x64 with SH1106 or SSD1306 controller
-* LiPo battery 3.7 V, 600 mAh
+* LiPo battery 3.7 V, 600 mAh (maybe a 150 mAh is sufficient)
 
 ## References
 
