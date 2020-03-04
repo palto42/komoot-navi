@@ -1,24 +1,24 @@
 # Komoot Navi Display
 
-Small Bluetooth Low Enegergy (BLE) receiver to display the navigation information from the Komoot app (Android or iPhone).
+Small Bluetooth Low Energy (BLE) receiver to display the navigation information from the Komoot app (Android or iPhone).
 
 ## Function
 
-The device is switched on by touching sensor pin 15 (default, can be changed in source code). It will show the battery voltage and then try to connect to the Komoot app (navigation in the app should be started befor turning on this BLE receiver). If it can't connect within 30 seconds, it will return to deep sleep.
+The device is switched on by touching sensor pin 15 (default, can be changed in source code). It will show the battery voltage and then try to connect to the Komoot app (navigation in the app should be started before turning on this BLE receiver). If it can't connect within 30 seconds, it will return to deep sleep.
 
-If the device has connected to the Kommot app, it will show the directions to the next way point as also shown in the app.
+If the device has connected to the Komoot app, it will show the directions to the next way point as also shown in the app.
 At the top it will show the name of the next street. In the middle the direction and the distance to the next junction is shown. The bottom shows the current street name and below the battery voltage bar.
 
-If the device doesn't receive updates from the app for more than 30 seconds (e.g. naviagtion finished or paused), it will turn off (enter deep spleep).
+If the device doesn't receive updates from the app for more than 30 seconds (e.g. navigation finished or paused), it will turn off (enter deep sleep).
 
 ### Pairing the device with the Komoot app
 
-Before using the device as Kommot navigation receiver, it needs to be paired with the Kommot app.
+Before using the device as Komoot navigation receiver, it needs to be paired with the Komoot app.
 This is done in the app "Profile > Settings > Bluetooth Connect" (not via the system Bluetooth pairing).
 
 ![Komoot app settings](/doc/Komoot-app-settings.jpg)
 
-Then select "Ciclo HAC bike computer" from the "Connect anaother device" section and turn on the ESP32 navigation receiver.
+Then select "Ciclo HAC bike computer" from the "Connect another device" section and turn on the ESP32 navigation receiver.
 
 ![Komoot device pairing](/doc/Komoot-app-pairing.jpg)
 
@@ -42,7 +42,7 @@ The symbols have been converted and edited with Gimp to the required XBM format.
 
 The device was tested with a [Wemos Lolin32](https://wiki.wemos.cc/products:lolin32:lolin32) and the slightly smaller [Wemos Lolin32 lite](https://wiki.wemos.cc/products:lolin32:lolin32_lite), both can still be purchased on Ebay or similar. For the display an OLED 128x64 is used with either [0.96" (SSD1306 controller)](https://www.ebay.de/itm/0-96-I2C-IIC-Serial-128X64-128-64-White-OLED-LCD-LED-Display-Module-for-Arduino/122680684215) or [1.3" (SSD1106 controller)](https://www.ebay.de/itm/White-1-3-OLED-LCD-Display-Module-IIC-I2C-Interface-128x64-3-5V-For-Arduino/272827722582) size. The unit is powered with a 3.7 V LiPo battery.
 
-A voltage devider with two resistors is used to measure the battery power. The battery level is shown with a bar indicator at the bottom of the display and the device turns off (deep sleep) if the power is too low.
+A voltage divider with two resistors is used to measure the battery power. The battery level is shown with a bar indicator at the bottom of the display and the device turns off (deep sleep) if the power is too low.
 
 Breadboard wiring:
 ![breadboard](Komoot_BLE_breadboard.png)

@@ -114,7 +114,7 @@ static void notifyCallback(
         }
       }
     }
-    if (! new_street) { // checkj if distance has changed
+    if (! new_street) { // check if distance has changed
       for (int i = 5; i < 9; i++) {
         if (pData[i] != old_data[i]) {
           new_notify = true;
@@ -214,7 +214,7 @@ void show_message(std::string header, int sym_num = 32, std::string distance="Ko
   batt_length = _min (batt_length,75);
   u8g2.drawHLine(126-batt_length,63,batt_length);
   u8g2.sendBuffer();  // full buffer mode
-  Serial.print ("Show messge: ");
+  Serial.print ("Show message: ");
   Serial.println (header.c_str());
 }
 
@@ -331,7 +331,7 @@ void setup() {
   // Welcome screen
   show_message("©2018 Matthias Homann"); // developer
   delay(500);
-  String v_str = "Akku: " + String(volt,1) + "V";
+  String v_str = "Battery: " + String(volt,1) + "V";
   show_message(v_str.c_str()); // battery status
   delay(500);
 
