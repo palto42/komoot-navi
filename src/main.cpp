@@ -121,7 +121,7 @@ static void notifyCallback(
         }
       }
     }
-    ESP_LOGD(tag,"*");  // just print a * for each received notification
+    ESP_LOGD(tag,"Receiving notification");
 }
 
 std::string utf8_substr(const std::string& str, unsigned int start, unsigned int leng)
