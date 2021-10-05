@@ -30,6 +30,8 @@
 
 #include<U8g2lib.h>
 #include<Wire.h>
+#include "esp_log.h"
+#define tag "main"
 
 #define Threshold 75 /* touch pin threshold, greater the value = more the sensitivity */
 
@@ -85,7 +87,7 @@ std::string street_old = "";
 
 void callback(){
   //placeholder callback function for touch
-  Serial.println ("Touch!");
+  ESP_LOGI(tag,"Touch!");
 }
 
 static void notifyCallback(
@@ -119,7 +121,7 @@ static void notifyCallback(
         }
       }
     }
-    Serial.print ("*");  // just print a * for each received notification
+    ESP_LOGD(tag,"Receiving notification");
 }
 
 std::string utf8_substr(const std::string& str, unsigned int start, unsigned int leng)
@@ -155,36 +157,21 @@ void show_message(std::string header, int sym_num = 32, std::string distance="Ko
   int icon_width = std::max(52,symbols[sym_num].width);
   int x_offset = std::max(0,24 - symbols[sym_num].width / 2);
   int y_offset = 40 - symbols[sym_num].height / 2;
-  Serial.print("Icon x-offset: ");
-  Serial.print(x_offset);
-  Serial.print(", y-offset: ");
-  Serial.println(y_offset);
+  ESP_LOGD(tag,"Icon x-offset: %d , y-offset: %d",x_offset,y_offset);
   // need to set font before getting the message width
   u8g2.setFont(u8g2_font_6x13_te);
   int header_pos_x = std::max(0,63 - u8g2.getUTF8Width(header.c_str()) / 2);
   int info_pos_x = icon_width + std::max(0,(127 - icon_width - u8g2.getUTF8Width(info.c_str())) / 2);
-  Serial.print("Header length:");
-  Serial.print(header.length());
-  Serial.print("width: ");
-  Serial.print(u8g2.getUTF8Width(distance.c_str()));
-  Serial.print(", offset: ");
-  Serial.println(header_pos_x);
+  ESP_LOGD(tag,"Header length: %d width: %d, offset: %d",header.length(),u8g2.getUTF8Width(distance.c_str()),header_pos_x);
   u8g2.setFont(u8g2_font_logisoso16_tr);  // width 10, heigth 16
   int dist_pos_x = icon_width + std::max(0,(127 - icon_width - u8g2.getUTF8Width(distance.c_str())) / 2);
-  Serial.print("Offset info: ");
-  Serial.print(info_pos_x);
-  Serial.print(", distance: ");
-  Serial.print(dist_pos_x);
-  Serial.print(", dist width: ");
-  Serial.println(u8g2.getUTF8Width(distance.c_str()));
+  ESP_LOGD(tag,"Offset info: %d , distance: %d, dist width: %d",info_pos_x,dist_pos_x,u8g2.getUTF8Width(distance.c_str()));
   int max_dist = (128 - dist_pos_x) / 10;
   distance = utf8_substr(distance,0,max_dist);
-  Serial.print("Dist max length: ");
-  Serial.println(max_dist);
+  ESP_LOGD(tag,"Dist max length: %d",max_dist);
   int max_info = (128 - info_pos_x) / 6;
   info = utf8_substr(info,0,max_info);
-  Serial.print("Info max length: ");
-  Serial.println(max_info);
+  ESP_LOGD(tag,"Info max length: %d",max_info);
   // use full buffer mode
   u8g2.clearBuffer();
   u8g2.drawXBMP(x_offset,y_offset,
@@ -210,8 +197,7 @@ void show_message(std::string header, int sym_num = 32, std::string distance="Ko
   batt_length = _min (batt_length,75);
   u8g2.drawHLine(126-batt_length,63,batt_length);
   u8g2.sendBuffer();  // full buffer mode
-  Serial.print ("Show messge: ");
-  Serial.println (header.c_str());
+  ESP_LOGI(tag,"Show messge: %s",header.c_str());
 }
 
 bool connectToServer(BLEAddress pAddress) {
@@ -233,7 +219,7 @@ bool connectToServer(BLEAddress pAddress) {
   pRemoteCharacteristic->registerForNotify(notifyCallback);
   // Display that BLE has been connected
   show_message("BLE connected",34);
-  Serial.println ("Connected to desired service on BLE server");
+  ESP_LOGI(tag,"Connected to desired service on BLE server");
   return true;
 }
 
@@ -253,8 +239,7 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 // Main program setup
 void setup() {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println("Starting Arduino BLE Client application...");
+  ESP_LOGI(tag,"Starting Arduino BLE Client application...");
 
   // reduce clock speed to save power
   // supported values = 2M (no BLE), 80M, 120M, 240M
@@ -268,8 +253,7 @@ void setup() {
   pinMode(battPin, INPUT);
   raw  = analogRead(battPin);
   volt = raw / vScale1;
-  Serial.print ("Battery = ");
-  Serial.println (volt);
+  ESP_LOGI(tag,"Battery = %d",volt);
 
   u8g2.begin();
   u8g2.setFlipMode(rotation);
@@ -307,8 +291,7 @@ void setup() {
   uint32_t scan_time = millis();
   pBLEScan->start(30); // try 30s to find a device
   scan_time = millis() -scan_time;
-  Serial.print("Scan time: ");
-  Serial.println(scan_time/1000);
+  ESP_LOGI(tag,"Scan time: %d",scan_time/1000);
   if (scan_time > 29000) {
     // timeout
     show_message("No BLE, will turn off",35);
@@ -355,8 +338,7 @@ void loop() {
         new_street = false;
         street_old = street;
         street = value.substr(9);
-        Serial.print ("Street: ");
-        Serial.println (street.c_str());
+        ESP_LOGI(tag,"Street: %s",street.c_str());
       }
     }
     // calculate the distance to next fork
@@ -377,8 +359,7 @@ void loop() {
         dist = int(dist / 10) * 10;  // round down
     }
     dist_unit = String(dist,digits).c_str() + dist_unit;
-    Serial.print ("Distance: ");
-    Serial.println (dist);
+    ESP_LOGI(tag,"Distance: %d",dist);
     // std::string street = value.substr(9);
     // get battery voltage
     raw  = analogRead(battPin);
