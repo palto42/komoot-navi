@@ -4,13 +4,14 @@
 
 This project implements a BLE receiver based on an ESP32 module and a 64*128 pixel OLED display to show the direction, distance and street name to the next junction.
 
-The prototype uses a [Wemos Lolin32](https://wiki.wemos.cc/products:lolin32:lolin32) board and a 0.96" (SSD1306) or 1.3" (SSD1106) OLED display. The unit can be powered with a 3.7 V LiPo battery (e.g. 600 mAh).
+The device is turned on via a touch input connected to the ESP32 pin 15 and automatically turns off if it doesn't receive new updates from the Komoot app for a while.
 
-A voltage devider with two resistors is used to measure the battery power.
+For more information, have a look at [Komoot BLE receiver description](/doc/Komoot%20BLE%20receiver.md).
 
-Navi in 3D-printect case:
+## Navi in 3D-printed case
+
+The name of the next street is shown at the top of the display. In the middle the direction and the distance to the next way point can be found. The bottom shows the current street name and below it the battery level.
 
 ![navi in 3d-printed case](/doc/navi-case.jpg)
 
-For more information, please check the [/doc](/doc) folder.
-The Blender and STL files for the 3D-printed case are in the [/navi-case](/navi-case)] folder.
+The Blender and STL files for the 3D-printed case are in the [/navi-case](/navi-case)] folder. It is designed for the Lolin32 lite and the 1.3" OLED display.
