@@ -1,5 +1,7 @@
 # BLE Receiver for Komoot naviagtion app
 
+> ⚠️ **NOTE**: This repository has been archived and will not be updated anymore.
+
 [Komoot](https://www.komoot.de) is a navigation app for Android and iPhone especially for cycling and hiking. The BLE protocoll for external navigation displays is described on [kommot/BLEConnect](https://github.com/komoot/BLEConnect)
 
 This project implements a BLE receiver based on an ESP32 module and a 64*128 pixel OLED display to show the direction, distance and street name to the next junction.
